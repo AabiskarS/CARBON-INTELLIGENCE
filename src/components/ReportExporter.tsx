@@ -189,7 +189,7 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
                   <span className="text-xl font-bold font-mono text-slate-850">{(currentTotalScope1 / 1000).toFixed(3)} t CO2e</span>
                   <div className="mt-1.5 text-[11px] text-slate-450 space-y-0.5 border-t border-slate-100 pt-1.5">
                     <p>Stationary Burners: {(stationaryCombustion / 1000).toFixed(3)} t</p>
-                    <p>Mobile Vehicle Fleet: {(mobileCombustion / 1005).toFixed(3)} t</p>
+                    <p>Mobile Vehicle Fleet: {(mobileCombustion / 1000).toFixed(3)} t</p>
                   </div>
                 </div>
 
