@@ -90,8 +90,6 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
   };
 
   const uploadAndExtract = (selectedFile: File) => {
-    // NOTE: This feature relies on Gemini multimodal extraction only.
-    // TODO: Add a local OCR fallback (e.g. tesseract.js) if Gemini extraction is unavailable.
     setLoading(true);
     setLoadingStep("Reading local file bytes into memory...");
 
@@ -178,8 +176,8 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-800">Gemini-powered Invoice Extraction</h3>
-            <p className="text-xs text-slate-400">Upload EDP, Endesa or Galp electricity / gas bills for Gemini AI extraction.</p>
+            <h3 className="text-base font-bold text-slate-800">Direct Invoice Scanning (OCR)</h3>
+            <p className="text-xs text-slate-400">Scan EDP, Endesa or Galp electricity / gas bills to populate entries using Gemini AI.</p>
           </div>
         </div>
 

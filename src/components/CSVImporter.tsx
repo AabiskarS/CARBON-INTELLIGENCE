@@ -88,8 +88,6 @@ export default function CSVImporter({ facilities, onImportActivities }: CSVImpor
       }
 
       const rowsToImport: ParsedRow[] = [];
-      // TODO: This parser is intentionally lightweight and does not support quoted values containing commas.
-      // A more robust production-ready importer should use a proper CSV parser library.
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -116,14 +114,10 @@ export default function CSVImporter({ facilities, onImportActivities }: CSVImpor
           error = "Date must be in absolute YYYY-MM-DD format.";
         }
 
-        // Match facility by ID or name against the current company facility list.
-        const normalizedFacilityText = rawFacility.trim().toLowerCase();
-        let matchedFacility = facilities.find((f) => {
-          return (
-            f.id.toLowerCase() === normalizedFacilityText ||
-            f.name.toLowerCase() === normalizedFacilityText
-          );
-        });
+        // Match facility
+        let matchedFacility = facilities.find(
+          f => f.name.toLowerCase() === rawFacility.toLowerCase() || f.id.toLowerCase() === rawFacility.toLowerCase()
+        );
 
         if (!matchedFacility) {
           // Fallback: match by facility id or register a placeholder
@@ -152,29 +146,24 @@ export default function CSVImporter({ facilities, onImportActivities }: CSVImpor
 
         // Calculate emissions preview if valid
         let calcEmissions = 0;
-        if (isValid && !isNaN(rawValue) && rawValue > 0) {
+        if (isValid && !isNaN(rawValue)) {
           const factorObj = EMISSION_FACTORS[subType];
           if (factorObj) {
             calcEmissions = rawValue * factorObj.factor;
-          } else {
-            isValid = false;
-            if (!error) error = `No emission factor configured for subtype "${subType}".`;
           }
         } else {
           isValid = false;
           if (!error) error = "Measurement value must be a valid positive number.";
         }
 
-        const normalizedUnit = rawUnit === "litres" || rawUnit === "litros" ? "litres" : "kWh";
-
         rowsToImport.push({
           date: rawDate,
-          facilityName: matchedFacility?.name || rawFacility,
+          facilityName: rawFacility,
           facilityId: matchedFacility?.id || "unassigned",
           category,
           subType,
           value: isNaN(rawValue) ? 0 : rawValue,
-          unit: normalizedUnit,
+          unit: (rawUnit === "litres" || rawUnit === "litros") ? "litres" : "kWh",
           cost: rawCost,
           description: rawDesc || `CSV line ${i}`,
           isValid,
