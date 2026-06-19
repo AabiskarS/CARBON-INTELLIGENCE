@@ -24,6 +24,7 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
   const priorLogs = activities.filter(
     (a) => new Date(a.date).getFullYear() === (company.reportingYear - 1)
   );
+  const hasPriorYearData = priorLogs.length > 0;
 
   // Current statistics
   const currentTotalScope1 = currentLogs
@@ -75,9 +76,9 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
     csvContent += "YEAR-OVER-YEAR CLIMATE BENCHMARKS\n";
     csvContent += "Calendar Year Period,Absolute Emissions (tonnes CO2e),Baseline Delta % Change\n";
     csvContent += `${company.reportingYear},${(currentTotal / 1000).toFixed(3)} t CO2e,${
-      priorTotal > 0 ? (((currentTotal - priorTotal) / priorTotal) * 100).toFixed(1) + "%" : "Baseline Yr"
+      priorTotal > 0 ? (((currentTotal - priorTotal) / priorTotal) * 100).toFixed(1) + "%" : hasPriorYearData ? "Baseline Yr" : "No prior year data"
     }\n`;
-    if (priorTotal > 0) {
+    if (hasPriorYearData) {
       csvContent += `${company.reportingYear - 1},${(priorTotal / 1000).toFixed(3)} t CO2e,Parent Baseline Year\n`;
     }
     csvContent += "\n";
@@ -214,7 +215,13 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
                 </div>
                 <div className="text-right font-mono font-bold text-xs text-slate-800 space-y-1">
                   <p>{company.reportingYear}: {(currentTotal / 1000).toFixed(3)} t</p>
-                  {priorTotal > 0 && <p className="text-slate-400 text-[11px]">{company.reportingYear - 1}: {(priorTotal / 1000).toFixed(3)} t (Baseline)</p>}
+                  {hasPriorYearData ? (
+                    <p className="text-slate-400 text-[11px]">
+                      {company.reportingYear - 1}: {(priorTotal / 1000).toFixed(3)} t (Baseline)
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 text-[11px]">No prior-year data available for benchmark comparison.</p>
+                  )}
                 </div>
               </div>
             </div>
