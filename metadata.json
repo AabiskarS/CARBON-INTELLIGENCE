@@ -1,0 +1,6 @@
+{
+  "name": "SME Carbon Footprint Intelligence System",
+  "description": "Enterprise Scope 1 and Scope 2 GHG carbon accounting system for Portuguese SMEs aligned with CSRD & ESRS E1 reporting standards",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
