@@ -11,9 +11,9 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
-  const [username, setUsername] = useState("sustainability@sme.pt");
-  const [password, setPassword] = useState("portugal-csr");
-  const [companyName, setCompanyName] = useState("Serralharia Central de Aveiro, Lda.");
+  const [username, setUsername] = useState("admin@carbonintelligence.pt");
+  const [password, setPassword] = useState("demo2026");
+  const [companyName, setCompanyName] = useState("Carbon Intelligence Demo");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -41,7 +41,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
 
       if (response.ok && data.success) {
         // Log in, and let the caller know what company we established
-        onLoginSuccess(username, companyName, username === "sustainability@sme.pt");
+        onLoginSuccess(username, companyName, username === "admin@carbonintelligence.pt");
       } else {
         setError(data.error || "Authentication failed. Clear invalid logs.");
       }
@@ -92,7 +92,7 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
                 />
               </div>
               <p className="mt-1.5 text-[11px] text-slate-400">
-                Use <code className="font-mono bg-slate-100 py-0.5 px-1 rounded text-teal-700">sustainability@sme.pt</code> to log into the pre-loaded pilot.
+                Use <code className="font-mono bg-slate-100 py-0.5 px-1 rounded text-teal-700">admin@carbonintelligence.pt</code> to log into the pre-loaded pilot.
               </p>
             </div>
 
