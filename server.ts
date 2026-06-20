@@ -83,7 +83,7 @@ Extract the following information:
 Respond in a valid JSON object structure with the fields defined below. Do not output any markdown around the JSON, respond inside the requested schema.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: [
         billImagePart,
         { text: "Extract the billing period, electricity or gas consumption in kWh, and total cost in EUR from this utility bill." }
@@ -166,7 +166,7 @@ Each operational lever must specify which Scope/Category it impacts, and express
 Format your output in a clean, highly structured JSON object.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: promptText,
       config: {
         systemInstruction: "You are an expert corporate sustainability advisor specializing in EU CSRD/ESRS standard carbon disclosures (Scope 1 and Scope 2) for European Small & Medium Enterprises (SMEs), using metric units.",
@@ -256,7 +256,7 @@ Rules:
     const lastUserMessage = messages[messages.length - 1]?.content || "";
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: [
         ...geminiHistory,
         { role: "user", parts: [{ text: lastUserMessage }] }
