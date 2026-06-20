@@ -41,7 +41,6 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
       setDragActive(true);
@@ -51,7 +50,6 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     setError("");
@@ -139,8 +137,7 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
     reader.readAsDataURL(selectedFile);
   };
 
-  const handleCommitReview = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCommitReview = () => {
     if (!facilityId) {
       alert("Please select a controlled facility boundary before committing.");
       return;
@@ -238,7 +235,7 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
 
       {/* Verification and prefill Review Area (Never Auto-saved!) */}
       {extractedData && (
-        <form onSubmit={handleCommitReview} className="bg-teal-50/30 border border-teal-200/80 rounded-2xl p-6 shadow-xs space-y-6 animate-fade-in-up">
+        <div className="bg-teal-50/30 border border-teal-200/80 rounded-2xl p-6 shadow-xs space-y-6 animate-fade-in-up">
           <div className="flex items-center justify-between border-b border-teal-200/50 pb-3">
             <div className="flex items-center gap-2">
               <Edit className="h-5 w-5 text-teal-700" />
@@ -383,13 +380,14 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
               Cancel and Discard Scans
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={handleCommitReview}
               className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-xs cursor-pointer transition-all"
             >
               Verify, Approve & Commit
             </button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   );
