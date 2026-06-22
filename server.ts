@@ -136,7 +136,11 @@ Respond in a valid JSON object structure with the fields defined below. Do not o
     res.json(parsedData);
   } catch (error: any) {
     console.error("Error extracting bill:", error);
-    res.status(500).json({ error: error.message || "An error occurred during billing analysis by the AI model." });
+    const is429 = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
+    if (is429) {
+      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
+    }
+    res.status(500).json({ error: "An error occurred during bill scanning. Please try again or enter data manually." });
   }
 });
 
@@ -214,7 +218,11 @@ Format your output in a clean, highly structured JSON object.`;
     res.json(parsedData);
   } catch (error: any) {
     console.error("Error generating insights:", error);
-    res.status(500).json({ error: error.message || "An error occurred during carbon coaching analysis." });
+    const is429b = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
+    if (is429b) {
+      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
+    }
+    res.status(500).json({ error: "An error occurred generating the insights report. Please try again." });
   }
 });
 
@@ -270,7 +278,11 @@ Rules:
     res.json({ content: response.text });
   } catch (error: any) {
     console.error("Error in corporate coach chat:", error);
-    res.status(500).json({ error: error.message || "An error occurred with the AI Corporate Chat Coach." });
+    const is429c = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
+    if (is429c) {
+      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
+    }
+    res.status(500).json({ error: "An error occurred with the AI coach. Please try again." });
   }
 });
 
