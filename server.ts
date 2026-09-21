@@ -17,8 +17,13 @@ const PORT = 3000;
 // High-limit parser for base64 uploads (like scanned bills)
 app.use(express.json({ limit: "25mb" }));
 
-// Helper to translate Gemini errors (including 429 quota exceeded) into friendly messages
+// Helper to translate Gemini API errors into user-friendly messages with appropriate HTTP status codes
 function handleGeminiError(error: any, fallbackMessage: string): { status: number; error: string } {
+  // Normalize error detection across multiple error shapes
+  const statusProp = error?.status;
+  const codeProp = error?.code;
+  const nestedCode = error?.error?.code;
+  const nestedStatus = error?.error?.status;
   const errMsg = typeof error === "string" ? error : error?.message || "";
   let rawJson = "";
   try {
@@ -26,48 +31,62 @@ function handleGeminiError(error: any, fallbackMessage: string): { status: numbe
   } catch {}
   const combined = `${errMsg} ${rawJson}`.toLowerCase();
 
-  const is429 =
-    error?.status === 429 ||
-    error?.code === 429 ||
-    error?.error?.code === 429 ||
-    error?.status === 503 ||
-    error?.code === 503 ||
-    error?.error?.code === 503 ||
-    error?.status === "RESOURCE_EXHAUSTED" ||
-    error?.error?.status === "RESOURCE_EXHAUSTED" ||
-    error?.status === "UNAVAILABLE" ||
-    error?.error?.status === "UNAVAILABLE" ||
+  // 1. 429/503 quota and rate-limit errors -> 429 with retry message
+  const is429or503 =
+    statusProp === 429 ||
+    codeProp === 429 ||
+    nestedCode === 429 ||
+    statusProp === 503 ||
+    codeProp === 503 ||
+    nestedCode === 503 ||
+    statusProp === "RESOURCE_EXHAUSTED" ||
+    nestedStatus === "RESOURCE_EXHAUSTED" ||
+    statusProp === "UNAVAILABLE" ||
+    nestedStatus === "UNAVAILABLE" ||
     combined.includes("429") ||
     combined.includes("503") ||
     combined.includes("resource_exhausted") ||
     combined.includes("quota exceeded") ||
+    combined.includes("quota") ||
     combined.includes("rate limit") ||
-    combined.includes("high demand") ||
+    combined.includes("rate-limit") ||
     combined.includes("too many requests") ||
+    combined.includes("high demand") ||
+    combined.includes("temporarily unavailable") ||
     combined.includes("unavailable");
 
-  if (is429) {
+  if (is429or503) {
+    console.warn(`[AI Engine] Quota or rate-limit reached:`, errMsg.slice(0, 150));
     return {
       status: 429,
-      error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes.",
+      error: "AI features are temporarily unavailable due to quota or rate limits. Please retry in a few moments.",
     };
   }
 
-  const isAuth =
-    error?.status === 401 ||
-    error?.code === 401 ||
+  // 2. 401 auth errors (invalid key, API blocked) -> 401 with setup guidance
+  const is401 =
+    statusProp === 401 ||
+    codeProp === 401 ||
+    nestedCode === 401 ||
+    statusProp === "UNAUTHENTICATED" ||
+    nestedStatus === "UNAUTHENTICATED" ||
     combined.includes("401") ||
     combined.includes("unauthenticated") ||
     combined.includes("api_key_service_blocked") ||
+    combined.includes("api key not valid") ||
+    combined.includes("invalid api key") ||
     combined.includes("access_token_type_unsupported");
 
-  if (isAuth) {
+  if (is401) {
+    console.error(`[AI Engine] Google AI Authentication Error:`, errMsg);
     return {
       status: 401,
-      error: "Google AI Authentication Error: Please ensure your GEMINI_API_KEY is active and has the Generative Language API enabled.",
+      error: "Google AI Authentication Error: Please ensure your GEMINI_API_KEY is configured and valid in Settings > Secrets.",
     };
   }
 
+  // 3. Fallback 500 for all other errors
+  console.error(`[AI Engine] Internal processing error:`, error);
   return {
     status: 500,
     error: fallbackMessage,
@@ -94,24 +113,7 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// 1. Basic Auth Endpoint
-app.post("/api/auth/login", (req, res) => {
-  const { username, password } = req.body;
-  if (!username) {
-    return res.status(400).json({ error: "Username is required" });
-  }
-  // Simple password check or allow any (prototype login for a pilot user)
-  // Let's accept any password for usability, or if they put a password, we authenticate
-  res.json({
-    success: true,
-    user: {
-      username,
-      companyName: req.body.companyName || `${username} Enterprises, Lda.`
-    }
-  });
-});
-
-// 2. Document Utility Bill Extractor Endpoint
+// 1. Document Utility Bill Extractor Endpoint
 app.post("/api/upload-bill", async (req, res) => {
   try {
     const { fileData, fileName, mimeType } = req.body;
@@ -192,7 +194,6 @@ Respond in a valid JSON object structure with the fields defined below. Do not o
 
     res.json(parsedData);
   } catch (error: any) {
-    console.error("Error extracting bill:", error);
     const { status, error: errorMsg } = handleGeminiError(
       error,
       "An error occurred during bill scanning. Please try again or enter data manually."
@@ -274,7 +275,6 @@ Format your output in a clean, highly structured JSON object.`;
     const parsedData = JSON.parse(response.text ? response.text.trim() : "{}");
     res.json(parsedData);
   } catch (error: any) {
-    console.error("Error generating insights:", error);
     const { status, error: errorMsg } = handleGeminiError(
       error,
       "An error occurred generating the insights report. Please try again."
@@ -334,7 +334,6 @@ Rules:
 
     res.json({ content: response.text });
   } catch (error: any) {
-    console.error("Error in corporate coach chat:", error);
     const { status, error: errorMsg } = handleGeminiError(
       error,
       "An error occurred with the AI coach. Please try again."

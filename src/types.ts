@@ -31,6 +31,8 @@ export interface Activity {
   cost?: number; // in EUR
   description?: string;
   isExtracted?: boolean; // Flaq if pre-filled from utility bill
+  userId?: string;
+  createdAt?: string;
 }
 
 export interface EmissionFactor {
@@ -78,7 +80,10 @@ export const EMISSION_FACTORS: Record<Activity['subType'], EmissionFactor> = {
 
 export interface SessionState {
   isAuthenticated: boolean;
+  userId: string | null;
   username: string | null;
+  userEmail: string | null;
+  photoURL?: string | null;
   company: Company | null;
   activities: Activity[];
 }

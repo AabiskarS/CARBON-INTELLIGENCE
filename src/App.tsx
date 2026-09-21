@@ -4,8 +4,18 @@
  */
 
 import { useState, useEffect } from "react";
-import { Company, Activity, SessionState } from "./types";
+import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import {
+  doc,
+  collection,
+  onSnapshot,
+  setDoc,
+  deleteDoc,
+  writeBatch
+} from "firebase/firestore";
+import { Company, Activity } from "./types";
 import { SAMPLE_COMPANY, SAMPLE_ACTIVITIES } from "./sampleData";
+import { auth, db, signOut, handleFirestoreError, OperationType } from "./lib/firebase";
 
 // Components
 import LoginForm from "./components/LoginForm";
@@ -32,16 +42,17 @@ import {
   Compass,
   MessageSquare,
   Fingerprint,
-  Layers
+  Layers,
+  Loader2,
+  Database
 } from "lucide-react";
 
 export default function App() {
-  const [session, setSession] = useState<SessionState>({
-    isAuthenticated: false,
-    username: null,
-    company: null,
-    activities: []
-  });
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [firestoreSyncing, setFirestoreSyncing] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "add_activity" | "insights" | "coach" | "profile" | "exporter"
@@ -49,137 +60,164 @@ export default function App() {
 
   const [logType, setLogType] = useState<"manual" | "scan" | "bulk_csv">("manual");
 
-  // Load session state from LocalStorage on mount to preserve user activity
+  // Track Firebase Auth state
   useEffect(() => {
-    const savedSession = localStorage.getItem("carbon_sme_session_state");
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession);
-        if (parsed.isAuthenticated) {
-          setSession(parsed);
-        }
-      } catch (err) {
-        console.error("Failed to parse LocalStorage carbon session state.");
-      }
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
-  // Update LocalStorage on session state changes
-  const saveSessionState = (newSession: SessionState) => {
-    setSession(newSession);
-    localStorage.setItem("carbon_sme_session_state", JSON.stringify(newSession));
-  };
-
-  const handleLoginSuccess = (username: string, companyName: string, isDefaultPilot: boolean) => {
-    let companyObj: Company;
-
-    if (isDefaultPilot) {
-      // Create empty pilot company layout (the sample activities are gated and loaded click-to-initialize)
-      companyObj = {
-        name: companyName,
-        industrySector: SAMPLE_COMPANY.industrySector,
-        employeeCount: SAMPLE_COMPANY.employeeCount,
-        reportingYear: SAMPLE_COMPANY.reportingYear,
-        facilities: SAMPLE_COMPANY.facilities
-      };
-    } else {
-      // Real sandbox company starting completely empty
-      companyObj = {
-        name: companyName,
-        industrySector: "Software, Tech & Shared Service Offices",
-        employeeCount: 15,
-        reportingYear: 2026,
-        facilities: [
-          { id: "fac-main", name: "Headquarters Office", type: "office" }
-        ]
-      };
+  // Listen to Firestore real-time updates for company and activities
+  useEffect(() => {
+    if (!currentUser) {
+      setCompany(null);
+      setActivities([]);
+      return;
     }
 
-    const newSession: SessionState = {
-      isAuthenticated: true,
-      username,
-      company: companyObj,
-      activities: [] // starts completely empty!
-    };
+    const userId = currentUser.uid;
+    const companyDocRef = doc(db, "users", userId);
+    const activitiesColRef = collection(db, "users", userId, "activities");
 
-    saveSessionState(newSession);
-  };
+    // Real-time listener for user's company profile
+    const unsubCompany = onSnapshot(
+      companyDocRef,
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setCompany({
+            name: data.name || (currentUser.displayName ? `${currentUser.displayName}'s SME` : "Portuguese SME Corp"),
+            industrySector: data.industrySector || "General Business",
+            employeeCount: data.employeeCount ?? 15,
+            reportingYear: data.reportingYear ?? 2026,
+            facilities: data.facilities && data.facilities.length > 0
+              ? data.facilities
+              : [{ id: "fac-main", name: "Headquarters Office", type: "office" }]
+          });
+        } else {
+          // Initialize default company profile in Firestore for new user
+          const initialCompany: Company = {
+            name: currentUser.displayName ? `${currentUser.displayName}'s Organization` : "Santos & Filhos, Lda.",
+            industrySector: "Software, Tech & Shared Service Offices",
+            employeeCount: 15,
+            reportingYear: 2026,
+            facilities: [
+              { id: "fac-main", name: "Headquarters Office", type: "office" }
+            ]
+          };
 
-  const handleLogout = () => {
-    const cleared: SessionState = {
-      isAuthenticated: false,
-      username: null,
-      company: null,
-      activities: []
-    };
-    setSession(cleared);
-    localStorage.removeItem("carbon_sme_session_state");
-    setActiveTab("dashboard");
-  };
-
-  // Corporate Profile updates
-  const handleUpdateCompany = (updatedCompany: Company) => {
-    const newSession = {
-      ...session,
-      company: updatedCompany
-    };
-    saveSessionState(newSession);
-  };
-
-  // Load sample baseline activities on demand
-  const handleLoadSampleActivities = () => {
-    if (!session.company) return;
-
-    // Load original layout and seed records
-    const newSession = {
-      ...session,
-      company: {
-        ...session.company,
-        facilities: SAMPLE_COMPANY.facilities
+          try {
+            await setDoc(companyDocRef, {
+              ...initialCompany,
+              userId,
+              updatedAt: new Date().toISOString()
+            });
+          } catch (err) {
+            handleFirestoreError(err, OperationType.CREATE, `users/${userId}`);
+          }
+        }
       },
-      activities: SAMPLE_ACTIVITIES
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, `users/${userId}`);
+      }
+    );
+
+    // Real-time listener for user's carbon activities
+    const unsubActivities = onSnapshot(
+      activitiesColRef,
+      (snapshot) => {
+        const items: Activity[] = [];
+        snapshot.forEach((docSnap) => {
+          items.push(docSnap.data() as Activity);
+        });
+        // Sort newest first
+        items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setActivities(items);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, `users/${userId}/activities`);
+      }
+    );
+
+    return () => {
+      unsubCompany();
+      unsubActivities();
     };
-    saveSessionState(newSession);
-    alert("Sample pilot data loaded! Mapped 4 operational facilities (production, office, warehouse, fleet) and 7 baseline carbon entries.");
+  }, [currentUser]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setCurrentUser(null);
+      setCompany(null);
+      setActivities([]);
+      setActiveTab("dashboard");
+    } catch (err) {
+      console.error("Sign-out error:", err);
+    }
   };
 
-  // Add individual activity
-  const handleAddActivity = (newAct: Omit<Activity, "id" | "emissions">) => {
-    const rate = requireEmissionFactorFactor(newAct.subType);
-    const emissionsEquivalent = newAct.value * rate;
-
-    const fullActivity: Activity = {
-      ...newAct,
-      id: `act-${Date.now()}`,
-      emissions: emissionsEquivalent
-    };
-
-    const newSession = {
-      ...session,
-      activities: [fullActivity, ...session.activities]
-    };
-    saveSessionState(newSession);
+  // Corporate Profile updates persisted to Firestore
+  const handleUpdateCompany = async (updatedCompany: Company) => {
+    if (!currentUser) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
+    try {
+      await setDoc(
+        doc(db, "users", userId),
+        {
+          ...updatedCompany,
+          userId,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    } finally {
+      setFirestoreSyncing(false);
+    }
   };
 
-  // Direct append bulk activities (from csv load)
-  const handleImportActivities = (newActivities: Activity[]) => {
-    const newSession = {
-      ...session,
-      activities: [...newActivities, ...session.activities]
-    };
-    saveSessionState(newSession);
+  // Load sample baseline activities on demand directly into Firestore
+  const handleLoadSampleActivities = async () => {
+    if (!currentUser || !company) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
+
+    try {
+      // 1. Update facilities in Firestore
+      await setDoc(
+        doc(db, "users", userId),
+        {
+          facilities: SAMPLE_COMPANY.facilities,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+
+      // 2. Batch commit sample activities into user's Firestore subcollection
+      const batch = writeBatch(db);
+      SAMPLE_ACTIVITIES.forEach((act) => {
+        const actRef = doc(db, "users", userId, "activities", act.id);
+        batch.set(actRef, {
+          ...act,
+          userId,
+          createdAt: new Date().toISOString()
+        });
+      });
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${userId}/activities`);
+    } finally {
+      setFirestoreSyncing(false);
+    }
   };
 
-  // Remove individual log line
-  const handleRemoveActivity = (id: string) => {
-    const remaining = session.activities.filter((a) => a.id !== id);
-    const newSession = {
-      ...session,
-      activities: remaining
-    };
-    saveSessionState(newSession);
-  };
-
+  // Helper for emission factors
   const requireEmissionFactorFactor = (subType: Activity["subType"]): number => {
     const map: Record<Activity["subType"], number> = {
       electricity: 0.235,
@@ -190,19 +228,100 @@ export default function App() {
     return map[subType] || 0;
   };
 
+  // Add individual activity to Firestore
+  const handleAddActivity = async (newAct: Omit<Activity, "id" | "emissions">) => {
+    if (!currentUser) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
+    const rate = requireEmissionFactorFactor(newAct.subType);
+    const emissionsEquivalent = Math.round(newAct.value * rate * 100) / 100;
+    const activityId = `act-${Date.now()}`;
+
+    const fullActivity: Activity = {
+      ...newAct,
+      id: activityId,
+      emissions: emissionsEquivalent,
+      userId,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      const actRef = doc(db, "users", userId, "activities", activityId);
+      await setDoc(actRef, fullActivity);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `users/${userId}/activities/${activityId}`);
+    } finally {
+      setFirestoreSyncing(false);
+    }
+  };
+
+  // Direct append bulk activities (from csv load) into Firestore
+  const handleImportActivities = async (newActivities: Activity[]) => {
+    if (!currentUser) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
+
+    try {
+      const batch = writeBatch(db);
+      newActivities.forEach((act) => {
+        const actId = act.id || `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const actRef = doc(db, "users", userId, "activities", actId);
+        batch.set(actRef, {
+          ...act,
+          id: actId,
+          userId,
+          createdAt: new Date().toISOString()
+        });
+      });
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${userId}/activities`);
+    } finally {
+      setFirestoreSyncing(false);
+    }
+  };
+
+  // Remove individual log line from Firestore
+  const handleRemoveActivity = async (id: string) => {
+    if (!currentUser) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
+    try {
+      await deleteDoc(doc(db, "users", userId, "activities", id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `users/${userId}/activities/${id}`);
+    } finally {
+      setFirestoreSyncing(false);
+    }
+  };
+
+  // Show loading spinner while determining Firebase auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-teal-600 mx-auto mb-3" />
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 font-mono">
+            Connecting to Firebase Cloud Services...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Core Authentication gating
-  if (!session.isAuthenticated || !session.company) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+  if (!currentUser || !company) {
+    return <LoginForm />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-55 flex flex-col font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       {/* Upper Navigation deck banner */}
       <header className="bg-slate-900 text-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Left Corporate Brand */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 bg-teal-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-md shadow-teal-500/20">
                 <Globe className="h-5 w-5" />
               </div>
@@ -210,7 +329,10 @@ export default function App() {
                 <h1 className="text-sm font-black tracking-tight flex items-center gap-1.5 leading-none">
                   CARBON<span className="text-teal-400">INTELLIGENCE</span>
                 </h1>
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider">SME ESG Accounting Port</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider flex items-center gap-1">
+                  <Database className="h-2.5 w-2.5 text-teal-400" />
+                  Cloud Firestore Connected
+                </p>
               </div>
             </div>
 
@@ -273,11 +395,29 @@ export default function App() {
             </nav>
 
             {/* Right: Controller Profile and Logout */}
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 bg-slate-800 py-1.5 px-3 rounded-xl border border-slate-700">
-                <User className="h-3.5 w-3.5 text-teal-400" />
-                <span className="text-[11px] font-mono text-slate-300 font-semibold truncate max-w-32" title={session.username || ""}>
-                  {session.username}
+            <div className="flex items-center gap-3">
+              {firestoreSyncing && (
+                <span className="hidden sm:flex items-center gap-1 text-[10px] text-teal-400 font-mono">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Syncing Firestore...
+                </span>
+              )}
+              <div className="flex items-center gap-2 bg-slate-800 py-1.5 px-3 rounded-xl border border-slate-700">
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.displayName || "User"}
+                    className="h-5 w-5 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <User className="h-3.5 w-3.5 text-teal-400" />
+                )}
+                <span
+                  className="text-[11px] font-mono text-slate-300 font-semibold truncate max-w-36"
+                  title={currentUser.email || currentUser.displayName || ""}
+                >
+                  {currentUser.displayName || currentUser.email}
                 </span>
               </div>
               <button
@@ -292,28 +432,28 @@ export default function App() {
         </div>
       </header>
 
-      {/* Gated demo seed banner */}
-      <div className="bg-gradient-to-r from-teal-550 to-emerald-600 bg-teal-650 text-white shadow-inner">
-        <div className="max-w-7xl mx-auto py-2 px-4 sm:px-6 lg:px-8 text-xs flex flex-col sm:flex-row justify-between items-center gap-2 bg-[#345d00]">
-          <p className="font-semibold text-center sm:text-left flex items-center gap-1.5">
-            <Fingerprint className="h-4 w-4 text-teal-200" />
-            Active Controlled Boundaries:{" "}
-            <span className="font-bold underline">{session.company.name}</span> with{" "}
-            {session.activities.length} accounting logs committed.
+      {/* Active boundaries banner */}
+      <div className="bg-slate-800 border-b border-slate-700 text-slate-200">
+        <div className="max-w-7xl mx-auto py-2.5 px-4 sm:px-6 lg:px-8 text-xs flex flex-col sm:flex-row justify-between items-center gap-2">
+          <p className="font-medium text-center sm:text-left flex items-center gap-1.5">
+            <Fingerprint className="h-4 w-4 text-teal-400" />
+            Active Organization:{" "}
+            <span className="font-bold text-white underline">{company.name}</span> with{" "}
+            <span className="font-bold text-teal-400">{activities.length}</span> verified entries in Firestore.
           </p>
-          {session.activities.length === 0 && (
+          {activities.length === 0 && (
             <button
               onClick={handleLoadSampleActivities}
-              className="px-3 py-1 bg-white hover:bg-slate-50 text-teal-700 font-black rounded-lg shadow-xs cursor-pointer text-[10px] uppercase tracking-wider transition-colors"
+              className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-xs cursor-pointer text-[10px] uppercase tracking-wider transition-colors"
             >
-              🚀 Initialize Portuguese SME Sample Data
+              🚀 Initialize Portuguese Pilot Data
             </button>
           )}
         </div>
       </div>
 
       {/* Main viewport Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#96c192]">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Mobile quick tab controller */}
         <div className="lg:hidden mb-6 flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl">
           <button
@@ -361,14 +501,14 @@ export default function App() {
         {/* View switching logic */}
         {activeTab === "dashboard" && (
           <CarbonCharts
-            company={session.company}
-            activities={session.activities}
+            company={company}
+            activities={activities}
             onRemoveActivity={handleRemoveActivity}
           />
         )}
 
         {activeTab === "add_activity" && (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-8">
             {/* Mode selection banner */}
             <div className="flex justify-center">
               <div className="inline-flex rounded-xl bg-slate-150 p-1 border border-slate-200">
@@ -401,21 +541,21 @@ export default function App() {
 
             {logType === "manual" && (
               <AddActivityForm
-                facilities={session.company.facilities}
+                facilities={company.facilities}
                 onAddActivity={handleAddActivity}
               />
             )}
 
             {logType === "scan" && (
               <BillUploadForm
-                facilities={session.company.facilities}
+                facilities={company.facilities}
                 onAddActivity={handleAddActivity}
               />
             )}
 
             {logType === "bulk_csv" && (
               <CSVImporter
-                facilities={session.company.facilities}
+                facilities={company.facilities}
                 onImportActivities={handleImportActivities}
               />
             )}
@@ -424,37 +564,39 @@ export default function App() {
 
         {activeTab === "insights" && (
           <AIInsightsReport
-            company={session.company}
-            activities={session.activities}
+            company={company}
+            activities={activities}
           />
         )}
 
         {activeTab === "coach" && (
           <AICarbonCoach
-            company={session.company}
-            activities={session.activities}
+            company={company}
+            activities={activities}
           />
         )}
 
         {activeTab === "profile" && (
           <ProfileForm
-            company={session.company}
+            company={company}
             onUpdate={handleUpdateCompany}
           />
         )}
 
         {activeTab === "exporter" && (
           <ReportExporter
-            company={session.company}
-            activities={session.activities}
+            company={company}
+            activities={activities}
           />
         )}
       </main>
 
-      {/* Humble Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-850 mt-auto text-center text-xs">
+      {/* Footer */}
+      <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 mt-auto text-center text-xs">
         <p className="font-sans">© 2026 CarbonFootprint Enterprise SME Audit Coherence Tool.</p>
-        <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono">Conceptually mapped to EU Corporate Sustainability Reporting Disclosures (CSRD) & ESRS E1 standards.</p>
+        <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono">
+          Powered by Cloud Firestore & Google AI • Conceptually mapped to EU CSRD & ESRS E1 standards.
+        </p>
       </footer>
     </div>
   );

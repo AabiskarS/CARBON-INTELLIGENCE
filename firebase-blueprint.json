@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "UserCompany": {
+      "title": "UserCompany",
+      "description": "Company profile metadata and operational facilities boundary belonging to the authenticated user",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the authenticated user who owns this company profile",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Official registered business or entity name",
+          "maxLength": 200
+        },
+        "industrySector": {
+          "type": "string",
+          "description": "Economic or NACE industry activity sector",
+          "maxLength": 200
+        },
+        "employeeCount": {
+          "type": "number",
+          "description": "Total count of active personnel or employees"
+        },
+        "reportingYear": {
+          "type": "number",
+          "description": "GHG protocol / CSRD E1 reporting fiscal year"
+        },
+        "facilities": {
+          "type": "array",
+          "description": "Array of controlled operational sites, offices, warehouses, or vehicle fleets"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last modification"
+        }
+      },
+      "required": ["userId", "name", "industrySector", "employeeCount", "reportingYear", "facilities"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "A single Scope 1 or Scope 2 greenhouse gas emissions ledger log entry",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the activity record",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this activity entry",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "description": "Calendar date of consumption in YYYY-MM-DD format",
+          "maxLength": 30
+        },
+        "facilityId": {
+          "type": "string",
+          "description": "Identifier of the controlled physical facility where emission occurred",
+          "maxLength": 128
+        },
+        "category": {
+          "type": "string",
+          "enum": ["scope1_stationary", "scope1_mobile", "scope2_electricity"],
+          "description": "GHG protocol scope categorization"
+        },
+        "subType": {
+          "type": "string",
+          "enum": ["electricity", "diesel", "petrol", "natural_gas"],
+          "description": "Specific fuel or energy carrier type"
+        },
+        "value": {
+          "type": "number",
+          "description": "Quantitative consumption amount in kWh or litres"
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["kWh", "litres"],
+          "description": "Measurement unit of consumption"
+        },
+        "emissions": {
+          "type": "number",
+          "description": "Calculated total greenhouse gas emissions in kg CO2e"
+        },
+        "cost": {
+          "type": "number",
+          "description": "Optional financial expenditure in Euros (€)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional notes or invoice supplier details",
+          "maxLength": 500
+        },
+        "isExtracted": {
+          "type": "boolean",
+          "description": "Flag indicating if extracted automatically by Gemini multimodal bill scan"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when the entry was created",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "userId", "date", "facilityId", "category", "subType", "value", "unit", "emissions"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserCompany",
+      "description": "User company profile and organizational facilities"
+    },
+    "/users/{userId}/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Individual Scope 1 and Scope 2 carbon activity records belonging to the user"
+    }
+  }
+}

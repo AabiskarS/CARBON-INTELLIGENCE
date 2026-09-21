@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all unmapped paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation for UserCompany
+    function isValidUserCompany(data, userId) {
+      return data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        data.industrySector is string && data.industrySector.size() <= 200 &&
+        data.employeeCount is number && data.employeeCount >= 0 &&
+        data.reportingYear is number && data.reportingYear >= 1900 && data.reportingYear <= 2100 &&
+        data.facilities is list && data.facilities.size() <= 100;
+    }
+
+    // Validation for Activity
+    function isValidActivity(data, userId) {
+      return data.userId == userId &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.date is string && data.date.size() <= 30 &&
+        data.facilityId is string && data.facilityId.size() <= 128 &&
+        data.category in ['scope1_stationary', 'scope1_mobile', 'scope2_electricity'] &&
+        data.subType in ['electricity', 'diesel', 'petrol', 'natural_gas'] &&
+        data.value is number && data.value >= 0 &&
+        data.unit in ['kWh', 'litres'] &&
+        data.emissions is number;
+    }
+
+    // User Company Profile
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserCompany(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserCompany(incoming(), userId) && incoming().userId == userId;
+      allow delete: if isOwner(userId);
+
+      // User's Carbon Activities (Scope 1 and 2 entries)
+      match /activities/{activityId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(activityId) && isValidActivity(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(activityId) && isValidActivity(incoming(), userId) && incoming().userId == userId;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(activityId);
+      }
+    }
+  }
+}
