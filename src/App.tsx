@@ -15,7 +15,8 @@ import {
 } from "firebase/firestore";
 import { Company, Activity } from "./types";
 import { SAMPLE_COMPANY, SAMPLE_ACTIVITIES } from "./sampleData";
-import { auth, db, signOut, handleFirestoreError, OperationType } from "./lib/firebase";
+import { auth, db, signOut, handleFirestoreError, OperationType, googleProvider, signInWithPopup } from "./lib/firebase";
+import { DEMO_COMPANY, DEMO_ACTIVITIES } from "./demoResponses";
 
 // Components
 import LoginForm from "./components/LoginForm";
@@ -49,6 +50,7 @@ import {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [company, setCompany] = useState<Company | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -60,10 +62,36 @@ export default function App() {
 
   const [logType, setLogType] = useState<"manual" | "scan" | "bulk_csv">("manual");
 
+  const handleStartDemo = () => {
+    setIsDemoMode(true);
+    setCompany(DEMO_COMPANY);
+    setActivities(DEMO_ACTIVITIES);
+    setActiveTab("dashboard");
+  };
+
+  const handleExitDemo = () => {
+    setIsDemoMode(false);
+    setCompany(null);
+    setActivities([]);
+    setActiveTab("dashboard");
+  };
+
+  const handleGoogleSignInFromDemo = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setIsDemoMode(false);
+    } catch (err: any) {
+      console.error("Google Sign-In error:", err);
+    }
+  };
+
   // Track Firebase Auth state
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      if (user) {
+        setIsDemoMode(false);
+      }
       setAuthLoading(false);
     });
 
@@ -73,8 +101,10 @@ export default function App() {
   // Listen to Firestore real-time updates for company and activities
   useEffect(() => {
     if (!currentUser) {
-      setCompany(null);
-      setActivities([]);
+      if (!isDemoMode) {
+        setCompany(null);
+        setActivities([]);
+      }
       return;
     }
 
@@ -149,6 +179,10 @@ export default function App() {
   }, [currentUser]);
 
   const handleLogout = async () => {
+    if (isDemoMode) {
+      handleExitDemo();
+      return;
+    }
     try {
       await signOut(auth);
       setCurrentUser(null);
@@ -160,8 +194,12 @@ export default function App() {
     }
   };
 
-  // Corporate Profile updates persisted to Firestore
+  // Corporate Profile updates persisted to Firestore (or in-memory in Demo Mode)
   const handleUpdateCompany = async (updatedCompany: Company) => {
+    if (isDemoMode) {
+      setCompany(updatedCompany);
+      return;
+    }
     if (!currentUser) return;
     setFirestoreSyncing(true);
     const userId = currentUser.uid;
@@ -182,8 +220,13 @@ export default function App() {
     }
   };
 
-  // Load sample baseline activities on demand directly into Firestore
+  // Load sample baseline activities on demand directly into Firestore (or in-memory in Demo Mode)
   const handleLoadSampleActivities = async () => {
+    if (isDemoMode) {
+      setCompany(DEMO_COMPANY);
+      setActivities(DEMO_ACTIVITIES);
+      return;
+    }
     if (!currentUser || !company) return;
     setFirestoreSyncing(true);
     const userId = currentUser.uid;
@@ -228,11 +271,8 @@ export default function App() {
     return map[subType] || 0;
   };
 
-  // Add individual activity to Firestore
+  // Add individual activity to Firestore (or in-memory in Demo Mode)
   const handleAddActivity = async (newAct: Omit<Activity, "id" | "emissions">) => {
-    if (!currentUser) return;
-    setFirestoreSyncing(true);
-    const userId = currentUser.uid;
     const rate = requireEmissionFactorFactor(newAct.subType);
     const emissionsEquivalent = Math.round(newAct.value * rate * 100) / 100;
     const activityId = `act-${Date.now()}`;
@@ -241,9 +281,18 @@ export default function App() {
       ...newAct,
       id: activityId,
       emissions: emissionsEquivalent,
-      userId,
+      userId: currentUser ? currentUser.uid : "demo-user",
       createdAt: new Date().toISOString()
     };
+
+    if (isDemoMode) {
+      setActivities((prev) => [fullActivity, ...prev]);
+      return;
+    }
+
+    if (!currentUser) return;
+    setFirestoreSyncing(true);
+    const userId = currentUser.uid;
 
     try {
       const actRef = doc(db, "users", userId, "activities", activityId);
@@ -255,8 +304,13 @@ export default function App() {
     }
   };
 
-  // Direct append bulk activities (from csv load) into Firestore
+  // Direct append bulk activities (from csv load) into Firestore (or in-memory in Demo Mode)
   const handleImportActivities = async (newActivities: Activity[]) => {
+    if (isDemoMode) {
+      setActivities((prev) => [...newActivities, ...prev]);
+      return;
+    }
+
     if (!currentUser) return;
     setFirestoreSyncing(true);
     const userId = currentUser.uid;
@@ -281,8 +335,13 @@ export default function App() {
     }
   };
 
-  // Remove individual log line from Firestore
+  // Remove individual log line from Firestore (or in-memory in Demo Mode)
   const handleRemoveActivity = async (id: string) => {
+    if (isDemoMode) {
+      setActivities((prev) => prev.filter((a) => a.id !== id));
+      return;
+    }
+
     if (!currentUser) return;
     setFirestoreSyncing(true);
     const userId = currentUser.uid;
@@ -310,14 +369,54 @@ export default function App() {
   }
 
   // Core Authentication gating
-  if (!currentUser || !company) {
-    return <LoginForm />;
+  if (!currentUser && !isDemoMode) {
+    return <LoginForm onTryDemo={handleStartDemo} />;
+  }
+
+  if (!company) {
+    if (isDemoMode) {
+      setCompany(DEMO_COMPANY);
+      setActivities(DEMO_ACTIVITIES);
+    }
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
+      {/* Top Banner: Demo Mode Announcement */}
+      {isDemoMode && (
+        <div className="bg-amber-400 text-slate-950 px-4 py-2 text-xs font-semibold flex flex-col sm:flex-row items-center justify-between gap-2 border-b border-amber-500 sticky top-0 z-50 shadow-xs">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <span className="bg-slate-900 text-amber-300 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md tracking-wider">
+              Demo Mode
+            </span>
+            <span>
+              Demo Mode — AI responses are pre-generated. Sign in with Google to use the live system.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleGoogleSignInFromDemo}
+              className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+              Sign in with Google
+            </button>
+            <button
+              onClick={handleExitDemo}
+              className="px-2.5 py-1 text-slate-900 hover:text-black font-semibold text-xs cursor-pointer underline"
+            >
+              Exit Demo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upper Navigation deck banner */}
-      <header className="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+      <header className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Left Corporate Brand */}
@@ -329,10 +428,17 @@ export default function App() {
                 <h1 className="text-sm font-black tracking-tight flex items-center gap-1.5 leading-none">
                   CARBON<span className="text-teal-400">INTELLIGENCE</span>
                 </h1>
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider flex items-center gap-1">
-                  <Database className="h-2.5 w-2.5 text-teal-400" />
-                  Cloud Firestore Connected
-                </p>
+                {isDemoMode ? (
+                  <p className="text-[10px] text-amber-300 mt-1 uppercase font-mono tracking-wider flex items-center gap-1">
+                    <Database className="h-2.5 w-2.5 text-amber-300" />
+                    In-Memory Mode (Demo)
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider flex items-center gap-1">
+                    <Database className="h-2.5 w-2.5 text-teal-400" />
+                    Cloud Firestore Connected
+                  </p>
+                )}
               </div>
             </div>
 
@@ -402,28 +508,35 @@ export default function App() {
                   Syncing Firestore...
                 </span>
               )}
-              <div className="flex items-center gap-2 bg-slate-800 py-1.5 px-3 rounded-xl border border-slate-700">
-                {currentUser.photoURL ? (
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.displayName || "User"}
-                    className="h-5 w-5 rounded-full"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <User className="h-3.5 w-3.5 text-teal-400" />
-                )}
-                <span
-                  className="text-[11px] font-mono text-slate-300 font-semibold truncate max-w-36"
-                  title={currentUser.email || currentUser.displayName || ""}
-                >
-                  {currentUser.displayName || currentUser.email}
-                </span>
-              </div>
+              {isDemoMode ? (
+                <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/40 py-1.5 px-3 rounded-xl text-amber-200">
+                  <User className="h-3.5 w-3.5 text-amber-300" />
+                  <span className="text-[11px] font-mono font-semibold">Demo Reviewer</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-slate-800 py-1.5 px-3 rounded-xl border border-slate-700">
+                  {currentUser?.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={currentUser?.displayName || "User"}
+                      className="h-5 w-5 rounded-full"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <User className="h-3.5 w-3.5 text-teal-400" />
+                  )}
+                  <span
+                    className="text-[11px] font-mono text-slate-300 font-semibold truncate max-w-36"
+                    title={currentUser?.email || currentUser?.displayName || ""}
+                  >
+                    {currentUser?.displayName || currentUser?.email}
+                  </span>
+                </div>
+              )}
               <button
                 onClick={handleLogout}
                 className="p-2 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-slate-300 transition-colors cursor-pointer"
-                title="Log Out Session"
+                title={isDemoMode ? "Exit Demo Mode" : "Log Out Session"}
               >
                 <LogOut className="h-4.5 w-4.5" />
               </button>
@@ -439,7 +552,8 @@ export default function App() {
             <Fingerprint className="h-4 w-4 text-teal-400" />
             Active Organization:{" "}
             <span className="font-bold text-white underline">{company.name}</span> with{" "}
-            <span className="font-bold text-teal-400">{activities.length}</span> verified entries in Firestore.
+            <span className="font-bold text-teal-400">{activities.length}</span>{" "}
+            {isDemoMode ? "sample activities (In-Memory Demo)." : "verified entries in Firestore."}
           </p>
           {activities.length === 0 && (
             <button
@@ -550,6 +664,7 @@ export default function App() {
               <BillUploadForm
                 facilities={company.facilities}
                 onAddActivity={handleAddActivity}
+                isDemoMode={isDemoMode}
               />
             )}
 
@@ -566,6 +681,7 @@ export default function App() {
           <AIInsightsReport
             company={company}
             activities={activities}
+            isDemoMode={isDemoMode}
           />
         )}
 
@@ -573,6 +689,7 @@ export default function App() {
           <AICarbonCoach
             company={company}
             activities={activities}
+            isDemoMode={isDemoMode}
           />
         )}
 

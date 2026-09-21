@@ -6,13 +6,15 @@
 import React, { useState, useRef } from "react";
 import { Facility, Activity, ActivityCategory, EMISSION_FACTORS } from "../types";
 import { FileUp, Sparkles, Loader2, AlertCircle, CheckCircle, HelpCircle, Edit } from "lucide-react";
+import { DEMO_BILL_EXTRACTION } from "../demoResponses";
 
 interface BillUploadFormProps {
   facilities: Facility[];
   onAddActivity: (activity: Omit<Activity, "id" | "emissions">) => void;
+  isDemoMode?: boolean;
 }
 
-export default function BillUploadForm({ facilities, onAddActivity }: BillUploadFormProps) {
+export default function BillUploadForm({ facilities, onAddActivity, isDemoMode }: BillUploadFormProps) {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +92,21 @@ export default function BillUploadForm({ facilities, onAddActivity }: BillUpload
   const uploadAndExtract = (selectedFile: File) => {
     setLoading(true);
     setLoadingStep("Reading local file bytes into memory...");
+
+    if (isDemoMode) {
+      setTimeout(() => {
+        setLoadingStep("Processing EDP utility bill layout with pre-configured parser...");
+        setTimeout(() => {
+          setLoading(false);
+          setExtractedData(DEMO_BILL_EXTRACTION as any);
+          setReviewPeriod(DEMO_BILL_EXTRACTION.billingPeriod);
+          setReviewConsumption(DEMO_BILL_EXTRACTION.consumptionKWh);
+          setReviewCost(DEMO_BILL_EXTRACTION.totalCostEur);
+          setReviewFuelType(DEMO_BILL_EXTRACTION.fuelType as any);
+        }, 400);
+      }, 300);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async () => {

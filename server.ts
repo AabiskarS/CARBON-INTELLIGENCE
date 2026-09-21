@@ -8,6 +8,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import * as dotenv from "dotenv";
+import { DEMO_BILL_EXTRACTION, DEMO_INSIGHTS_REPORT, getDemoChatResponse } from "./src/demoResponses";
 
 dotenv.config();
 
@@ -116,7 +117,13 @@ function getGeminiClient(): GoogleGenAI {
 // 1. Document Utility Bill Extractor Endpoint
 app.post("/api/upload-bill", async (req, res) => {
   try {
-    const { fileData, fileName, mimeType } = req.body;
+    const { fileData, fileName, mimeType, isDemo } = req.body;
+
+    // Return cached demo extraction if demo mode requested
+    if (isDemo || fileName?.toLowerCase().includes("demo") || req.body.isDemoMode) {
+      return res.json(DEMO_BILL_EXTRACTION);
+    }
+
     if (!fileData || !mimeType) {
       return res.status(400).json({ error: "Missing fileData (base64 string) or mimeType" });
     }
@@ -205,7 +212,12 @@ Respond in a valid JSON object structure with the fields defined below. Do not o
 // 3. Complex Enterprise AI Insights Generator
 app.post("/api/insights", async (req, res) => {
   try {
-    const { company, activities } = req.body;
+    const { company, activities, isDemo } = req.body;
+
+    // Return pre-written cached insights if in demo mode
+    if (isDemo || req.body.isDemoMode || company?.name === "Demo Enterprises, Lda." || company?.name?.toLowerCase().includes("demo")) {
+      return res.json(DEMO_INSIGHTS_REPORT);
+    }
 
     if (!company) {
       return res.status(400).json({ error: "Company details are required" });
@@ -286,10 +298,17 @@ Format your output in a clean, highly structured JSON object.`;
 // 4. Corporate Carbon Coach Chat Endpoint
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages, company, activities } = req.body;
+    const { messages, company, activities, isDemo } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "A list of chat messages is required" });
+    }
+
+    // Return pre-written cached chat responses in demo mode
+    if (isDemo || req.body.isDemoMode || company?.name === "Demo Enterprises, Lda." || company?.name?.toLowerCase().includes("demo")) {
+      const lastUserMsg = messages[messages.length - 1]?.content || "";
+      const reply = getDemoChatResponse(lastUserMsg, messages.length);
+      return res.json({ content: reply });
     }
 
     const ai = getGeminiClient();

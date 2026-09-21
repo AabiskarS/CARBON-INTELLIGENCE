@@ -6,10 +6,12 @@
 import { useState, useRef, useEffect } from "react";
 import { Company, Activity } from "../types";
 import { MessageSquare, Send, Sparkles, Loader2, Bot, User, RefreshCw, BarChart, HardHat } from "lucide-react";
+import { getDemoChatResponse } from "../demoResponses";
 
 interface AICarbonCoachProps {
   company: Company;
   activities: Activity[];
+  isDemoMode?: boolean;
 }
 
 interface Message {
@@ -17,7 +19,7 @@ interface Message {
   content: string;
 }
 
-export default function AICarbonCoach({ company, activities }: AICarbonCoachProps) {
+export default function AICarbonCoach({ company, activities, isDemoMode }: AICarbonCoachProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "bot",
@@ -54,6 +56,15 @@ Ask me anything about your current activity profile!`
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setSending(true);
+
+    if (isDemoMode) {
+      setTimeout(() => {
+        const cachedBotReply = getDemoChatResponse(userMsg, messages.length);
+        setMessages((prev) => [...prev, { role: "bot", content: cachedBotReply }]);
+        setSending(false);
+      }, 400);
+      return;
+    }
 
     try {
       const history = [...messages, { role: "user", content: userMsg }].map(msg => ({

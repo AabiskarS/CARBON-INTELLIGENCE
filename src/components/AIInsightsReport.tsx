@@ -6,10 +6,12 @@
 import { useState } from "react";
 import { Company, Activity, EMISSION_FACTORS } from "../types";
 import { Sparkles, Loader2, AlertTriangle, ShieldCheck, Download, Calendar, Flame, Zap, Award } from "lucide-react";
+import { DEMO_INSIGHTS_REPORT } from "../demoResponses";
 
 interface AIInsightsReportProps {
   company: Company;
   activities: Activity[];
+  isDemoMode?: boolean;
 }
 
 interface AdviceReport {
@@ -28,7 +30,7 @@ interface AdviceReport {
   esrsAlignDocs: string;
 }
 
-export default function AIInsightsReport({ company, activities }: AIInsightsReportProps) {
+export default function AIInsightsReport({ company, activities, isDemoMode }: AIInsightsReportProps) {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<AdviceReport | null>(null);
   const [error, setError] = useState("");
@@ -63,6 +65,14 @@ export default function AIInsightsReport({ company, activities }: AIInsightsRepo
     setLoading(true);
     setReport(null);
     setError("");
+
+    if (isDemoMode) {
+      setTimeout(() => {
+        setReport(DEMO_INSIGHTS_REPORT);
+        setLoading(false);
+      }, 450);
+      return;
+    }
 
     // Prepare calculations payload to ground Gemini
     const calculationContext = {
