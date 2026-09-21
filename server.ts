@@ -17,6 +17,63 @@ const PORT = 3000;
 // High-limit parser for base64 uploads (like scanned bills)
 app.use(express.json({ limit: "25mb" }));
 
+// Helper to translate Gemini errors (including 429 quota exceeded) into friendly messages
+function handleGeminiError(error: any, fallbackMessage: string): { status: number; error: string } {
+  const errMsg = typeof error === "string" ? error : error?.message || "";
+  let rawJson = "";
+  try {
+    rawJson = typeof error === "object" ? JSON.stringify(error) : "";
+  } catch {}
+  const combined = `${errMsg} ${rawJson}`.toLowerCase();
+
+  const is429 =
+    error?.status === 429 ||
+    error?.code === 429 ||
+    error?.error?.code === 429 ||
+    error?.status === 503 ||
+    error?.code === 503 ||
+    error?.error?.code === 503 ||
+    error?.status === "RESOURCE_EXHAUSTED" ||
+    error?.error?.status === "RESOURCE_EXHAUSTED" ||
+    error?.status === "UNAVAILABLE" ||
+    error?.error?.status === "UNAVAILABLE" ||
+    combined.includes("429") ||
+    combined.includes("503") ||
+    combined.includes("resource_exhausted") ||
+    combined.includes("quota exceeded") ||
+    combined.includes("rate limit") ||
+    combined.includes("high demand") ||
+    combined.includes("too many requests") ||
+    combined.includes("unavailable");
+
+  if (is429) {
+    return {
+      status: 429,
+      error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes.",
+    };
+  }
+
+  const isAuth =
+    error?.status === 401 ||
+    error?.code === 401 ||
+    combined.includes("401") ||
+    combined.includes("unauthenticated") ||
+    combined.includes("api_key_service_blocked") ||
+    combined.includes("access_token_type_unsupported");
+
+  if (isAuth) {
+    return {
+      status: 401,
+      error: "Google AI Authentication Error: Please ensure your GEMINI_API_KEY is active and has the Generative Language API enabled.",
+    };
+  }
+
+  return {
+    status: 500,
+    error: fallbackMessage,
+  };
+}
+
 // Lazy initializer for Gemini client to prevent crashes if key is initially absent
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
@@ -83,7 +140,7 @@ Extract the following information:
 Respond in a valid JSON object structure with the fields defined below. Do not output any markdown around the JSON, respond inside the requested schema.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.8-flash",
       contents: [
         billImagePart,
         { text: "Extract the billing period, electricity or gas consumption in kWh, and total cost in EUR from this utility bill." }
@@ -136,11 +193,11 @@ Respond in a valid JSON object structure with the fields defined below. Do not o
     res.json(parsedData);
   } catch (error: any) {
     console.error("Error extracting bill:", error);
-    const is429 = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
-    if (is429) {
-      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
-    }
-    res.status(500).json({ error: "An error occurred during bill scanning. Please try again or enter data manually." });
+    const { status, error: errorMsg } = handleGeminiError(
+      error,
+      "An error occurred during bill scanning. Please try again or enter data manually."
+    );
+    return res.status(status).json({ error: errorMsg });
   }
 });
 
@@ -170,7 +227,7 @@ Each operational lever must specify which Scope/Category it impacts, and express
 Format your output in a clean, highly structured JSON object.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.8-flash",
       contents: promptText,
       config: {
         systemInstruction: "You are an expert corporate sustainability advisor specializing in EU CSRD/ESRS standard carbon disclosures (Scope 1 and Scope 2) for European Small & Medium Enterprises (SMEs), using metric units.",
@@ -218,11 +275,11 @@ Format your output in a clean, highly structured JSON object.`;
     res.json(parsedData);
   } catch (error: any) {
     console.error("Error generating insights:", error);
-    const is429b = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
-    if (is429b) {
-      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
-    }
-    res.status(500).json({ error: "An error occurred generating the insights report. Please try again." });
+    const { status, error: errorMsg } = handleGeminiError(
+      error,
+      "An error occurred generating the insights report. Please try again."
+    );
+    return res.status(status).json({ error: errorMsg });
   }
 });
 
@@ -264,7 +321,7 @@ Rules:
     const lastUserMessage = messages[messages.length - 1]?.content || "";
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.8-flash",
       contents: [
         ...geminiHistory,
         { role: "user", parts: [{ text: lastUserMessage }] }
@@ -278,11 +335,11 @@ Rules:
     res.json({ content: response.text });
   } catch (error: any) {
     console.error("Error in corporate coach chat:", error);
-    const is429c = error?.status === 429 || error?.code === 429 || (error?.message && error.message.includes("429"));
-    if (is429c) {
-      return res.status(429).json({ error: "AI features are temporarily unavailable due to high usage. Please try again in a few minutes." });
-    }
-    res.status(500).json({ error: "An error occurred with the AI coach. Please try again." });
+    const { status, error: errorMsg } = handleGeminiError(
+      error,
+      "An error occurred with the AI coach. Please try again."
+    );
+    return res.status(status).json({ error: errorMsg });
   }
 });
 

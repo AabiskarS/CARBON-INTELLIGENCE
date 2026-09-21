@@ -77,9 +77,10 @@ Ask me anything about your current activity profile!`
       if (response.ok) {
         setMessages((prev) => [...prev, { role: "bot", content: data.content }]);
       } else {
+        const errorMsg = data.error || "Failed to communicate with AI coach.";
         setMessages((prev) => [
           ...prev, 
-          { role: "bot", content: `⚠️ Error from coach router: ${data.error || "Failed to compile AI insights."}` }
+          { role: "bot", content: `⚠️ ${errorMsg}` }
         ]);
       }
     } catch (err) {
