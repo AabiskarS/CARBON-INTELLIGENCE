@@ -194,8 +194,8 @@ export default function CSVImporter({ facilities, onImportActivities }: CSVImpor
       value: r.value,
       unit: r.unit,
       emissions: r.calcEmissions,
-      cost: r.cost,
-      description: r.description
+      cost: r.cost !== undefined && !isNaN(r.cost) ? r.cost : (null as any),
+      description: r.description || ""
     }));
 
     onImportActivities(compiledActivities);

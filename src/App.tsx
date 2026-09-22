@@ -14,7 +14,6 @@ import {
   writeBatch
 } from "firebase/firestore";
 import { Company, Activity } from "./types";
-import { SAMPLE_COMPANY, SAMPLE_ACTIVITIES } from "./sampleData";
 import { auth, db, signOut, handleFirestoreError, OperationType, googleProvider, signInWithPopup } from "./lib/firebase";
 import { DEMO_COMPANY, DEMO_ACTIVITIES } from "./demoResponses";
 
@@ -91,6 +90,11 @@ export default function App() {
       setCurrentUser(user);
       if (user) {
         setIsDemoMode(false);
+      } else {
+        if (!isDemoMode) {
+          setCompany(null);
+          setActivities([]);
+        }
       }
       setAuthLoading(false);
     });
@@ -108,6 +112,11 @@ export default function App() {
       return;
     }
 
+    // Reset memory before listening to Firestore
+    if (!isDemoMode) {
+      setActivities([]);
+    }
+
     const userId = currentUser.uid;
     const companyDocRef = doc(db, "users", userId);
     const activitiesColRef = collection(db, "users", userId, "activities");
@@ -116,26 +125,48 @@ export default function App() {
     const unsubCompany = onSnapshot(
       companyDocRef,
       async (docSnap) => {
+        const defaultOrgName = currentUser.displayName
+          ? `${currentUser.displayName}'s Organization`
+          : currentUser.email
+          ? `${currentUser.email.split("@")[0]}'s Organization`
+          : "My Organization";
+
         if (docSnap.exists()) {
           const data = docSnap.data();
+
+          // Check if document contains old prototype placeholder company names
+          const isOldSampleName =
+            data.name === "Santos & Filhos, Lda." ||
+            data.name === "Serralharia Central de Aveiro, Lda." ||
+            data.name === "Padaria Central" ||
+            data.name === "Padaria Central, Lda." ||
+            data.name === "Demo Enterprises, Lda.";
+
+          const finalName = (!data.name || isOldSampleName) ? defaultOrgName : data.name;
+
+          if (isOldSampleName) {
+            // Overwrite old prototype company name in Firestore with the user's actual organization
+            setDoc(companyDocRef, { name: defaultOrgName }, { merge: true }).catch(() => {});
+          }
+
           setCompany({
-            name: data.name || (currentUser.displayName ? `${currentUser.displayName}'s SME` : "Portuguese SME Corp"),
+            name: finalName,
             industrySector: data.industrySector || "General Business",
-            employeeCount: data.employeeCount ?? 15,
-            reportingYear: data.reportingYear ?? 2026,
+            employeeCount: data.employeeCount ?? 10,
+            reportingYear: data.reportingYear ?? new Date().getFullYear(),
             facilities: data.facilities && data.facilities.length > 0
               ? data.facilities
-              : [{ id: "fac-main", name: "Headquarters Office", type: "office" }]
+              : [{ id: "fac-1", name: "Main Facility", type: "office" }]
           });
         } else {
-          // Initialize default company profile in Firestore for new user
+          // Initialize fresh company profile in Firestore for new user
           const initialCompany: Company = {
-            name: currentUser.displayName ? `${currentUser.displayName}'s Organization` : "Santos & Filhos, Lda.",
-            industrySector: "Software, Tech & Shared Service Offices",
-            employeeCount: 15,
-            reportingYear: 2026,
+            name: defaultOrgName,
+            industrySector: "General Business",
+            employeeCount: 10,
+            reportingYear: new Date().getFullYear(),
             facilities: [
-              { id: "fac-main", name: "Headquarters Office", type: "office" }
+              { id: "fac-1", name: "Main Facility", type: "office" }
             ]
           };
 
@@ -155,13 +186,25 @@ export default function App() {
       }
     );
 
+    // Old prototype sample activity IDs to filter out and prune from real accounts
+    const sampleIds = new Set([
+      "act-1", "act-2", "act-3", "act-4", "act-5", "act-6", "act-7", "act-8",
+      "demo-act-1", "demo-act-2", "demo-act-3", "demo-act-4", "demo-act-5"
+    ]);
+
     // Real-time listener for user's carbon activities
     const unsubActivities = onSnapshot(
       activitiesColRef,
       (snapshot) => {
         const items: Activity[] = [];
         snapshot.forEach((docSnap) => {
-          items.push(docSnap.data() as Activity);
+          const act = docSnap.data() as Activity;
+          // If this document is an old sample prototype item accidentally saved in the user's collection, delete it
+          if (sampleIds.has(docSnap.id) || (act.id && sampleIds.has(act.id))) {
+            deleteDoc(docSnap.ref).catch(() => {});
+            return;
+          }
+          items.push(act);
         });
         // Sort newest first
         items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -204,57 +247,22 @@ export default function App() {
     setFirestoreSyncing(true);
     const userId = currentUser.uid;
     try {
-      await setDoc(
-        doc(db, "users", userId),
-        {
-          ...updatedCompany,
-          userId,
-          updatedAt: new Date().toISOString()
-        },
-        { merge: true }
-      );
+      const sanitizedCompany: Record<string, any> = {
+        name: updatedCompany.name || "My Organization",
+        industrySector: updatedCompany.industrySector || "General Business",
+        employeeCount: Number(updatedCompany.employeeCount) || 1,
+        reportingYear: Number(updatedCompany.reportingYear) || new Date().getFullYear(),
+        facilities: updatedCompany.facilities || [],
+        userId,
+        updatedAt: new Date().toISOString()
+      };
+      Object.keys(sanitizedCompany).forEach((k) => {
+        if (sanitizedCompany[k] === undefined) delete sanitizedCompany[k];
+      });
+
+      await setDoc(doc(db, "users", userId), sanitizedCompany, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
-    } finally {
-      setFirestoreSyncing(false);
-    }
-  };
-
-  // Load sample baseline activities on demand directly into Firestore (or in-memory in Demo Mode)
-  const handleLoadSampleActivities = async () => {
-    if (isDemoMode) {
-      setCompany(DEMO_COMPANY);
-      setActivities(DEMO_ACTIVITIES);
-      return;
-    }
-    if (!currentUser || !company) return;
-    setFirestoreSyncing(true);
-    const userId = currentUser.uid;
-
-    try {
-      // 1. Update facilities in Firestore
-      await setDoc(
-        doc(db, "users", userId),
-        {
-          facilities: SAMPLE_COMPANY.facilities,
-          updatedAt: new Date().toISOString()
-        },
-        { merge: true }
-      );
-
-      // 2. Batch commit sample activities into user's Firestore subcollection
-      const batch = writeBatch(db);
-      SAMPLE_ACTIVITIES.forEach((act) => {
-        const actRef = doc(db, "users", userId, "activities", act.id);
-        batch.set(actRef, {
-          ...act,
-          userId,
-          createdAt: new Date().toISOString()
-        });
-      });
-      await batch.commit();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `users/${userId}/activities`);
     } finally {
       setFirestoreSyncing(false);
     }
@@ -277,13 +285,30 @@ export default function App() {
     const emissionsEquivalent = Math.round(newAct.value * rate * 100) / 100;
     const activityId = `act-${Date.now()}`;
 
-    const fullActivity: Activity = {
-      ...newAct,
+    // Guarantee no undefined fields can ever be passed to Firestore
+    const sanitizedActivity: Record<string, any> = {
       id: activityId,
+      date: newAct.date || new Date().toISOString().split("T")[0],
+      facilityId: newAct.facilityId || "fac-1",
+      category: newAct.category,
+      subType: newAct.subType,
+      value: Number(newAct.value) || 0,
+      unit: newAct.unit || "kWh",
       emissions: emissionsEquivalent,
+      cost: newAct.cost !== undefined && newAct.cost !== null && !isNaN(Number(newAct.cost)) ? Number(newAct.cost) : null,
+      description: newAct.description !== undefined && newAct.description !== null ? String(newAct.description) : "",
       userId: currentUser ? currentUser.uid : "demo-user",
       createdAt: new Date().toISOString()
     };
+
+    // Filter out any undefined keys
+    Object.keys(sanitizedActivity).forEach((key) => {
+      if (sanitizedActivity[key] === undefined) {
+        delete sanitizedActivity[key];
+      }
+    });
+
+    const fullActivity = sanitizedActivity as Activity;
 
     if (isDemoMode) {
       setActivities((prev) => [fullActivity, ...prev]);
@@ -306,8 +331,30 @@ export default function App() {
 
   // Direct append bulk activities (from csv load) into Firestore (or in-memory in Demo Mode)
   const handleImportActivities = async (newActivities: Activity[]) => {
+    const sanitizedList: Activity[] = newActivities.map((act) => {
+      const actId = act.id || `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const cleanItem: Record<string, any> = {
+        id: actId,
+        date: act.date || new Date().toISOString().split("T")[0],
+        facilityId: act.facilityId || "fac-1",
+        category: act.category,
+        subType: act.subType,
+        value: Number(act.value) || 0,
+        unit: act.unit || "kWh",
+        emissions: Number(act.emissions) || 0,
+        cost: act.cost !== undefined && act.cost !== null && !isNaN(Number(act.cost)) ? Number(act.cost) : null,
+        description: act.description !== undefined && act.description !== null ? String(act.description) : "",
+        userId: currentUser ? currentUser.uid : "demo-user",
+        createdAt: new Date().toISOString()
+      };
+      Object.keys(cleanItem).forEach((k) => {
+        if (cleanItem[k] === undefined) delete cleanItem[k];
+      });
+      return cleanItem as Activity;
+    });
+
     if (isDemoMode) {
-      setActivities((prev) => [...newActivities, ...prev]);
+      setActivities((prev) => [...sanitizedList, ...prev]);
       return;
     }
 
@@ -317,15 +364,9 @@ export default function App() {
 
     try {
       const batch = writeBatch(db);
-      newActivities.forEach((act) => {
-        const actId = act.id || `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const actRef = doc(db, "users", userId, "activities", actId);
-        batch.set(actRef, {
-          ...act,
-          id: actId,
-          userId,
-          createdAt: new Date().toISOString()
-        });
+      sanitizedList.forEach((act) => {
+        const actRef = doc(db, "users", userId, "activities", act.id);
+        batch.set(actRef, act);
       });
       await batch.commit();
     } catch (err) {
@@ -555,14 +596,6 @@ export default function App() {
             <span className="font-bold text-teal-400">{activities.length}</span>{" "}
             {isDemoMode ? "sample activities (In-Memory Demo)." : "verified entries in Firestore."}
           </p>
-          {activities.length === 0 && (
-            <button
-              onClick={handleLoadSampleActivities}
-              className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-xs cursor-pointer text-[10px] uppercase tracking-wider transition-colors"
-            >
-              🚀 Initialize Portuguese Pilot Data
-            </button>
-          )}
         </div>
       </div>
 
@@ -618,6 +651,7 @@ export default function App() {
             company={company}
             activities={activities}
             onRemoveActivity={handleRemoveActivity}
+            onNavigateToAdd={() => setActiveTab("add_activity")}
           />
         )}
 

@@ -5,17 +5,61 @@
 
 import { useState } from "react";
 import { Company, Activity, EMISSION_FACTORS } from "../types";
-import { BarChart3, PieChart, ListFilter, Trash2, Globe, TrendingDown, Layers, Building2 } from "lucide-react";
+import { BarChart3, PieChart, ListFilter, Trash2, Globe, TrendingDown, Layers, Building2, PlusCircle, ArrowRight } from "lucide-react";
 
 interface CarbonChartsProps {
   company: Company;
   activities: Activity[];
   onRemoveActivity: (id: string) => void;
+  onNavigateToAdd?: () => void;
 }
 
-export default function CarbonCharts({ company, activities, onRemoveActivity }: CarbonChartsProps) {
+export default function CarbonCharts({ company, activities, onRemoveActivity, onNavigateToAdd }: CarbonChartsProps) {
   const [selectedFacilityFilter, setSelectedFacilityFilter] = useState("all");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+
+  // Empty state for signed-in user with no activities yet
+  if (activities.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-12 shadow-xs text-center">
+          <div className="h-16 w-16 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-teal-100">
+            <PlusCircle className="h-8 w-8" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800">No activities recorded yet</h3>
+          <p className="text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+            Your organization's carbon ledger is currently empty. Record your first Scope 1 (Direct Fuel, Gas, Transport) or Scope 2 (Purchased Electricity) entry to start calculating emissions.
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={onNavigateToAdd}
+              className="w-full sm:w-auto px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white font-semibold text-sm rounded-xl transition-colors shadow-xs cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add your first activity
+            </button>
+          </div>
+          <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-150">
+              <span className="text-xs font-bold font-mono text-teal-600 uppercase">Step 1</span>
+              <h4 className="text-xs font-bold text-slate-800 mt-1">Manual Logs or Utility Scan</h4>
+              <p className="text-[11px] text-slate-500 mt-1">Enter fuel receipts or upload utility bills with automated AI extraction.</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-150">
+              <span className="text-xs font-bold font-mono text-teal-600 uppercase">Step 2</span>
+              <h4 className="text-xs font-bold text-slate-800 mt-1">Emission Factor Math</h4>
+              <p className="text-[11px] text-slate-500 mt-1">Instant conversion to kg CO2e using Portuguese DGEG & IPCC factors.</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-150">
+              <span className="text-xs font-bold font-mono text-teal-600 uppercase">Step 3</span>
+              <h4 className="text-xs font-bold text-slate-800 mt-1">Decarbonization Insights</h4>
+              <p className="text-[11px] text-slate-500 mt-1">Review AI decarbonization guidance aligned with EU CSRD ESRS E1.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Filter current calendar year logs
   const yearlyLogs = activities.filter(

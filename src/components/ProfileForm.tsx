@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Company, Facility } from "../types";
 import { Building2, Save, Plus, Trash2, ShieldAlert, Layers } from "lucide-react";
 
@@ -18,6 +18,14 @@ export default function ProfileForm({ company, onUpdate }: ProfileFormProps) {
   const [employeeCount, setEmployeeCount] = useState(company.employeeCount);
   const [reportingYear, setReportingYear] = useState(company.reportingYear);
   const [facilities, setFacilities] = useState<Facility[]>(company.facilities);
+
+  useEffect(() => {
+    setName(company.name);
+    setIndustrySector(company.industrySector);
+    setEmployeeCount(company.employeeCount);
+    setReportingYear(company.reportingYear);
+    setFacilities(company.facilities);
+  }, [company]);
 
   // New facility entry states
   const [newFacName, setNewFacName] = useState("");

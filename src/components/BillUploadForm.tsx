@@ -169,7 +169,7 @@ export default function BillUploadForm({ facilities, onAddActivity, isDemoMode }
       subType: reviewFuelType,
       value: Number(reviewConsumption),
       unit: "kWh",
-      cost: reviewCost > 0 ? Number(reviewCost) : undefined,
+      cost: reviewCost > 0 ? Number(reviewCost) : (null as any),
       description: `AI Extracted EDP/Invoice - Billing Period: "${reviewPeriod}"`
     });
 

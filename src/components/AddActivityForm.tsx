@@ -67,8 +67,8 @@ export default function AddActivityForm({ facilities, onAddActivity }: AddActivi
       subType,
       value: Number(value),
       unit: currentUnit,
-      cost: cost ? Number(cost) : undefined,
-      description: description.trim() || undefined
+      cost: cost !== "" && !isNaN(Number(cost)) ? Number(cost) : (null as any),
+      description: description.trim() || ""
     });
 
     // Reset inputs
