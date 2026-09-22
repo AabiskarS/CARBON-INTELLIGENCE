@@ -9,6 +9,19 @@ recommendations.
 
 ---
 
+## Screenshots
+
+### Login
+![Login screen with Google Sign-In and Try Demo options](screenshots/01-login.png)
+
+### Dashboard — GHG Scope 1 & 2 Ledger
+![Dashboard with Scope 1 and 2 breakdowns, facility splits, and activity table](screenshots/02-dashboard.png)
+
+### AI Insights — CSRD/ESRS E1 Report
+![AI-generated CSRD/ESRS E1 draft disclosure with abatement levers and disclaimer](screenshots/03-ai-insights.png)
+
+---
+
 ## Features
 
 - **Company Profile** — Register your SME with facilities, sector, 
