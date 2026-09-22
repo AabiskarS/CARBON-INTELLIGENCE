@@ -14,6 +14,7 @@ import {
   writeBatch
 } from "firebase/firestore";
 import { Company, Activity } from "./types";
+import { calculateEmissions } from "./lib/emissions";
 import { auth, db, signOut, handleFirestoreError, OperationType, googleProvider, signInWithPopup } from "./lib/firebase";
 import { DEMO_COMPANY, DEMO_ACTIVITIES } from "./demoResponses";
 
@@ -268,21 +269,9 @@ export default function App() {
     }
   };
 
-  // Helper for emission factors
-  const requireEmissionFactorFactor = (subType: Activity["subType"]): number => {
-    const map: Record<Activity["subType"], number> = {
-      electricity: 0.235,
-      diesel: 2.68,
-      petrol: 2.31,
-      natural_gas: 0.202
-    };
-    return map[subType] || 0;
-  };
-
   // Add individual activity to Firestore (or in-memory in Demo Mode)
   const handleAddActivity = async (newAct: Omit<Activity, "id" | "emissions">) => {
-    const rate = requireEmissionFactorFactor(newAct.subType);
-    const emissionsEquivalent = Math.round(newAct.value * rate * 100) / 100;
+    const emissionsEquivalent = calculateEmissions(newAct.value, newAct.subType);
     const activityId = `act-${Date.now()}`;
 
     // Guarantee no undefined fields can ever be passed to Firestore

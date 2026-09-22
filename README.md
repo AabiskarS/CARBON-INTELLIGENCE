@@ -1,121 +1,137 @@
-# Carbon Footprint Intelligence System
+# CarbonLedger
 
-A prototype greenhouse gas accounting and reporting platform for Small and Medium Enterprises (SMEs) in Portugal.
+A full-stack carbon accounting platform for Portuguese SMEs. Track 
+Scope 1 & 2 emissions, scan utility bills, and generate 
+CSRD/ESRS-aligned reports — with AI-powered decarbonization 
+recommendations.
 
-Scoped to **Scope 1 and Scope 2** emissions under the **GHG Protocol Corporate Standard**, with conceptual alignment to the **EU Corporate Sustainability Reporting Directive (CSRD)** and **ESRS E1 Climate Change** disclosure requirements.
-
-Developed by **Aabiskar Sharma**.
+**Live:** [carbon-intelligence-u12u.onrender.com](https://carbon-intelligence-u12u.onrender.com/)
 
 ---
 
 ## Features
 
-### Multi-Facility Boundary Management
-- Define company profile: name, industry sector, employee count, and reporting year
-- Add and manage multiple facilities (office, warehouse, vehicle fleet, retail, production)
-- All activity data is scoped to a specific facility for boundary-level reporting
-
-### Scope 1 and Scope 2 Activity Logging
-- **Scope 1 Stationary**: Natural gas and heating fuel combustion at fixed facilities
-- **Scope 1 Mobile**: Diesel and petrol consumption from company vehicle fleets
-- **Scope 2 Electricity**: Grid electricity consumption using the Portuguese DGEG residual mix factor
-
-Emission factors sourced from DGEG (Portugal grid) and IPCC default combustion values, expressed in metric units (kWh, litres, kg CO2e).
-
-> ⚠️ Emission factors are subject to annual revision. Verify against current-year DGEG and IPCC publications before using in any official filing or academic citation.
-
-### Data Entry Options
-- **Manual entry**: Single-activity form with facility selector and live emissions preview
-- **Utility bill scan**: Upload an EDP, Endesa, or Galp invoice (PDF or image) — Gemini AI extracts billing period, consumption (kWh), and cost for user review before committing
-- **CSV bulk import**: Upload historical activity data in bulk (date, facility, category, value, unit)
-
-Extracted bill data is never auto-saved — it always goes through a human review and confirmation step.
-
-### AI Features (requires Gemini API key)
-- **AI Insights Report**: Generates a Scope 1 + Scope 2 breakdown with year-over-year comparison and business-operational recommendations (renewable tariff switching, fleet electrification, HVAC efficiency)
-- **AI Carbon Coach**: Interactive chat assistant grounded in the company's own activity data
-
-### Reporting and Export
-- Dashboard charts with Scope 1 vs Scope 2 breakdown by facility and category
-- Year-over-year comparison when more than one year of data exists
-- CSV export structured loosely around ESRS E1 disclosure categories, clearly labelled as a draft internal estimate, not an audited disclosure
-
-### Access and Data Management
-- Simple login form with session persistence via localStorage (prototype-grade, not production auth)
-- Sample data available via an explicit "Load Sample Data" action — new pilot companies start with an empty dashboard
+- **Company Profile** — Register your SME with facilities, sector, 
+  and reporting year
+- **Activity Ledger** — Log Scope 1 (fuel, fleet, gas) and Scope 2 
+  (electricity) emissions
+- **Bill Scanner** — Upload a utility invoice (EDP, Endesa, Galp, 
+  etc.); AI extracts kWh and cost
+- **CSV Import** — Bulk-import activities from spreadsheet exports
+- **AI Insights** — Generate a draft CSRD/ESRS E1-aligned report 
+  with 3–4 operational decarbonization levers
+- **Carbon Coach** — Chat about your own data, grounded in 
+  Portuguese regulatory context
+- **Real-time Sync** — Data persists across devices via Cloud 
+  Firestore
 
 ---
 
-## Tech Stack
+## Architecture
 
 | Layer | Technology |
-|---|---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, Motion |
-| Backend | Node.js, Express, TypeScript |
-| AI | Google Gemini API (`gemini-2.0-flash`) via `@google/genai` |
-| Data | localStorage session persistence |
+|-------|------------|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
+| Backend | Node.js, Express (server-side only — protects API keys) |
+| Auth | Firebase Authentication (Google Sign-In) |
+| Database | Cloud Firestore (per-user isolation) |
+| AI | Google Gemini via `@google/genai` |
 
 ---
 
-## Installation
+## Security
 
-### Prerequisites
-- Node.js v18 or above
-- npm v9 or above
-- A Gemini API key from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/AabiskarS/CARBON-INTELLIGENCE.git
-cd CARBON-INTELLIGENCE
-```
-
-### 2. Install dependencies
-```bash
-npm install
-```
-
-### 3. Configure environment
-Create a `.env` file in the project root (see `.env.example`):
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 4. Run in development
-```bash
-npm run dev
-```
-
-Open `http://localhost:3000` in your browser.
-
-### 5. Build for production
-```bash
-npm run build
-npm run start
-```
-
-### Running in GitHub Codespaces
-Add `GEMINI_API_KEY` as a repository secret under **Settings → Codespaces → Secrets**, then rebuild the container. The key is injected automatically at startup.
+- **Zero-trust Firestore rules** — each user can only read/write 
+  their own data (`request.auth.uid == userId`)
+- **Gemini API key is server-side only** — never exposed to the 
+  browser
+- **AI proxy through Express** — the frontend never touches the 
+  Gemini SDK directly
 
 ---
 
-## Compliance References
+## Domain Alignment
 
-- **GHG Protocol**: [Corporate Accounting and Reporting Standard](https://ghgprotocol.org/corporate-standard)
-- **CSRD**: [Directive (EU) 2022/2464](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2464)
-- **ESRS E1**: [EFRAG European Sustainability Reporting Standards](https://www.efrag.org/en/projects/esrs-e1-climate-change)
-- **DGEG**: [Portuguese grid emission factors](https://www.dgeg.gov.pt)
-- **IPCC**: [Guidelines for National Greenhouse Gas Inventories](https://www.ipcc-nggip.iges.or.jp)
+Emissions calculations and report structure follow:
+
+- **GHG Protocol** — Corporate Standard, Scope 1 & 2
+- **EU CSRD / ESRS E1** — Climate change disclosure for SMEs
+- **Portuguese emission factors** — DGEG (Direção-Geral de Energia 
+  e Geologia)
+
+Generated reports are **drafts** to accelerate internal 
+preparation — not certified submissions.
+
+---
+
+## Try It
+
+**Option 1 — Live Demo (no login):** click **Try Demo** on the 
+login page. Loads a sample Portuguese SME with pre-generated AI 
+responses. No Gemini quota consumed.
+
+**Option 2 — Full Experience:** click **Sign in with Google**. 
+Data is stored in Firestore, isolated per user, and synced across 
+devices.
+
+**Option 3 — Run Locally:**
+
+    git clone https://github.com/AabiskarS/CARBON-INTELLIGENCE.git
+    cd CARBON-INTELLIGENCE
+    npm install
+
+Create `.env.local`:
+
+    GEMINI_API_KEY=your_google_ai_studio_key
+
+Then:
+
+    npm run dev
+
+Open http://localhost:3000
 
 ---
 
-## Limitations
+## Known Limitations
 
-This is a research prototype built for academic evaluation. It is explicitly **not**:
-- An audited or assurance-grade CSRD compliance tool
-- A multi-tenant production system
-- A substitute for professional carbon accounting advice
-
-Authentication is prototype-only. Do not use this system to store real sensitive business data in its current form.
+- **Gemini free tier** — 20 requests/day on `gemini-3.8-flash`. 
+  Demo mode bypasses this with cached responses.
+- **Firestore shared quota** — the project is under AI Studio's 
+  shared quota group. Fine for a portfolio; not sized for 
+  production load.
+- **Auth** — Google Sign-In only; email/password intentionally 
+  removed.
+- **Reports are drafts** — verify with a certified accountant or 
+  accredited ESG auditor before submission.
 
 ---
+
+## Stack Notes
+
+- Full-stack **TypeScript** end to end
+- Server-side AI proxy keeps the Gemini key off the client
+- Firestore `ignoreUndefinedProperties` handles optional fields 
+  (cost, description)
+- Demo mode uses in-memory state and cached AI responses — zero 
+  backend calls
+
+---
+
+## About
+
+Built as a portfolio project for a **Bachelor's in Engenharia 
+Informática** at **Instituto Politécnico de Bragança**. Explores 
+applied AI, cloud-native data architecture, and regulatory domain 
+modeling (CSRD / ESRS / GHG Protocol).
+
+---
+
+## License
+
+MIT
+
+---
+
+**Author:** Aabiskar Sharma  
+**Email:** aabiskarsharma.official@gmail.com  
+**GitHub:** [github.com/AabiskarS](https://github.com/AabiskarS)
