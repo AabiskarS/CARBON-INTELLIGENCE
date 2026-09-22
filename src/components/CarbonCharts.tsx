@@ -136,7 +136,7 @@ export default function CarbonCharts({ company, activities, onRemoveActivity, on
             <BarChart3 className="h-10 w-10 text-slate-350 mx-auto mb-2" />
             <p className="text-sm font-semibold text-slate-700">Audit Ledger is Blank</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-              Add your logs or switch details. You can click "Load Sample Data" on the upper banner to seed realistic logs.
+              Add your logs or switch details. You can record entries via Input Logs & Scans to calculate emissions.
             </p>
           </div>
         ) : (

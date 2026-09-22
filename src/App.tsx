@@ -462,12 +462,10 @@ export default function App() {
           <div className="flex justify-between items-center h-16">
             {/* Left Corporate Brand */}
             <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 bg-teal-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-md shadow-teal-500/20">
-                <Globe className="h-5 w-5" />
-              </div>
+              <img src="/logo.svg" alt="CarbonLedger" width="32" height="32" />
               <div>
                 <h1 className="text-sm font-black tracking-tight flex items-center gap-1.5 leading-none">
-                  CARBON<span className="text-teal-400">INTELLIGENCE</span>
+                  CarbonLedger
                 </h1>
                 {isDemoMode ? (
                   <p className="text-[10px] text-amber-300 mt-1 uppercase font-mono tracking-wider flex items-center gap-1">
@@ -744,7 +742,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 mt-auto text-center text-xs">
-        <p className="font-sans">© 2026 CarbonFootprint Enterprise SME Audit Coherence Tool.</p>
+        <p className="font-sans">© 2026 CarbonLedger SME Audit Coherence Tool.</p>
         <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono">
           Powered by Cloud Firestore & Google AI • Conceptually mapped to EU CSRD & ESRS E1 standards.
         </p>

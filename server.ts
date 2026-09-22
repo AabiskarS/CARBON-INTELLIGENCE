@@ -229,7 +229,7 @@ app.post("/api/insights", async (req, res) => {
 Their current activities of Scope 1 and Scope 2 GHG protocol entries are as follows:
 ${JSON.stringify(activities, null, 2)}
 
-Prepare a structured draft internal carbon footprint report aligned conceptually with direct EU Corporate Sustainability Reporting Directive (CSRD) and ESRS E1 Climate Change requirements for SMEs.
+Prepare a structured draft internal CarbonLedger report aligned conceptually with direct EU Corporate Sustainability Reporting Directive (CSRD) and ESRS E1 Climate Change requirements for SMEs.
 
 Offer 3-4 specific business-operational efficiency upgrade levers:
 - Renewable electricity tariff switching
@@ -378,7 +378,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Carbon Footprint Intelligence System Server running on http://0.0.0.0:${PORT}`);
+    console.log(`CarbonLedger Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

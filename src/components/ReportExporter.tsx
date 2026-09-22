@@ -52,7 +52,7 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
     let csvContent = "";
 
     // Header segment
-    csvContent += "SME CARBON AUDITOR - ESRS E1 CLIMATE DISCLOSURE STATEMENT (DRAFT ESTIMATE)\n";
+    csvContent += "CarbonLedger - ESRS E1 CLIMATE DISCLOSURE STATEMENT (DRAFT ESTIMATE)\n";
     csvContent += `Organization Legal Entity Name,${company.name}\n`;
     csvContent += `Industry Sector Segment,${company.industrySector}\n`;
     csvContent += `Employee Census FTE,${company.employeeCount}\n`;
@@ -209,7 +209,7 @@ export default function ReportExporter({ company, activities }: ReportExporterPr
               <h5 className="text-xs uppercase font-bold text-slate-450 tracking-wider">B. Historical Performance Benchmark</h5>
               <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-700">Total Absolute Carbon Footprint (Tone equivalent)</p>
+                  <p className="text-xs font-semibold text-slate-700">Total Absolute CarbonLedger (Tone equivalent)</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">Slight improvements should align with operational equipment efficiency changes.</p>
                 </div>
                 <div className="text-right font-mono font-bold text-xs text-slate-800 space-y-1">

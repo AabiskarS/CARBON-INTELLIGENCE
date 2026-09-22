@@ -4,7 +4,7 @@
  */
 
 import { useState } from "react";
-import { ShieldCheck, Loader2, Sparkles, Lock, Play } from "lucide-react";
+import { Loader2, Sparkles, Lock, Play } from "lucide-react";
 import { auth, googleProvider, signInWithPopup } from "../lib/firebase";
 
 interface LoginFormProps {
@@ -34,11 +34,11 @@ export default function LoginForm({ onTryDemo }: LoginFormProps) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-teal-600 text-white shadow-xl shadow-teal-600/10 mb-6">
-          <ShieldCheck className="h-9 w-9" />
+        <div className="mb-6 flex justify-center">
+          <img src="/logo.svg" alt="CarbonLedger" width="64" height="64" />
         </div>
         <h2 className="text-3xl font-bold font-sans tracking-tight text-slate-900">
-          CarbonFootprint Enterprise
+          CarbonLedger
         </h2>
         <p className="mt-2 text-sm text-slate-500">
           Scope 1 & 2 GHG Protocol Accounting for Portuguese SMEs (CSRD/ESRS)

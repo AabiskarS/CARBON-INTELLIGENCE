@@ -27,7 +27,7 @@ export default function AICarbonCoach({ company, activities, isDemoMode }: AICar
 
 I am configured specifically for **${company.name}** and aligned with standard EU CSRD double-materiality disclosure targets (Scope 1 Direct Direct and Scope 2 Purchased Grid Electricity).
 
-How may I assist you in optimizing your operational carbon footprint or formulating abatement solutions? Some specific topics we can analyze include:
+How may I assist you in optimizing your operational CarbonLedger or formulating abatement solutions? Some specific topics we can analyze include:
 • Switching to **Garantias de Origem (d'Origem)** Renewable Tariffs (Scope 2 optimization)
 • **Electrification / Fuel-Efficiency** paths for your road vehicle fleet (Scope 1 Mobile)
 • Modernizing facility heating & mechanical energy machinery (Scope 1 Stationary)
