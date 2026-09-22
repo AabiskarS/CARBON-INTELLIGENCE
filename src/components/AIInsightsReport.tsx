@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Company, Activity, EMISSION_FACTORS } from "../types";
-import { Sparkles, Loader2, AlertTriangle, ShieldCheck, Download, Calendar, Flame, Zap, Award } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, ShieldCheck, Download, Calendar, Flame, Zap, Award, Info } from "lucide-react";
 import { DEMO_INSIGHTS_REPORT } from "../demoResponses";
 
 interface AIInsightsReportProps {
@@ -292,6 +292,16 @@ export default function AIInsightsReport({ company, activities, isDemoMode }: AI
               <div className="p-8 space-y-3">
                 <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">III. CSRD SME ESRS alignment guidance</h4>
                 <p className="text-xs text-slate-600 leading-relaxed">{report.esrsAlignDocs}</p>
+              </div>
+
+              {/* Disclaimer Note */}
+              <div className="p-6 sm:px-8 bg-amber-50/40">
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-4 text-xs text-amber-900/90 leading-relaxed flex items-start gap-3">
+                  <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p>
+                    This report is a draft generated from your activity data. It is intended to support internal CSRD/ESRS E1 preparation and does not constitute a certified disclosure. Verify emission factors and calculations with an accredited auditor before submission.
+                  </p>
+                </div>
               </div>
 
               {/* Download footer */}

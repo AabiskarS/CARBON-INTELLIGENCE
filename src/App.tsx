@@ -742,9 +742,9 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 mt-auto text-center text-xs">
-        <p className="font-sans">© 2026 CarbonLedger SME Audit Coherence Tool.</p>
-        <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono">
-          Powered by Cloud Firestore & Google AI • Conceptually mapped to EU CSRD & ESRS E1 standards.
+        <p className="font-sans text-slate-400">© 2026 CarbonLedger · Built for CSRD/ESRS E1 preparation</p>
+        <p className="text-[11px] text-slate-500 mt-1 opacity-80 font-sans">
+          Reports are drafts — verify with an accredited auditor before submission.
         </p>
       </footer>
     </div>
